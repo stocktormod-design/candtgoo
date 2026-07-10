@@ -353,26 +353,6 @@ io.on("connection", (socket) => {
   });
 });
 
-const HOME_TAGS = ["doggy","bwc","bbc","ebony couple","fat ass","missionary","cuckold","threesome"];
-
-async function primeCache() {
-  console.log("Priming content cache (3s between requests)...");
-  for (const tag of HOME_TAGS) {
-    for (let page = 1; page <= 3; page++) {
-      const key = `${tag}|${page}|20`;
-      if (cacheGet(key)) { console.log(`already cached: ${tag} p${page}`); continue; }
-      await new Promise(r => setTimeout(r, 3000)); // 3s gap — well under rate limit
-      try {
-        const data = await rgFetch(`https://api.redgifs.com/v2/gifs/search?search_text=${encodeURIComponent(tag)}&page=${page}&count=20`);
-        if (data.gifs?.length) { cacheSet(key, data); console.log(`cached ${tag} p${page}: ${data.gifs.length} gifs`); }
-        else console.log(`skip ${tag} p${page}: ${JSON.stringify(data.error||{})}`);
-      } catch (e) { console.log(`error ${tag} p${page}: ${e.message}`); }
-    }
-  }
-  console.log("Cache prime complete.");
-}
-
 server.listen(PORT, () => {
-  console.log(`candtgoon running on :${PORT}`);
-  setTimeout(primeCache, 5000); // wait 5s after boot before starting
+  console.log(`candtgoon running on :${PORT} — cache: ${searchCache.size} items loaded from disk`);
 });
