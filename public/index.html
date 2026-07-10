@@ -122,6 +122,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .snap-icon{font-size:18px;line-height:1}
 .snap-label{font-size:13px;font-weight:600;opacity:.9;letter-spacing:.1px}
 .bubble img,.bubble video{max-width:220px;border-radius:12px;display:block}
+.q-bubble{background:linear-gradient(135deg,#2a1035,#3d1548);border:1px solid var(--accent);border-radius:18px;padding:14px 16px;max-width:260px}
+.q-bot-tag{font-size:10px;font-weight:800;color:var(--accent2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+.q-text{font-size:14px;line-height:1.5;color:var(--t1);font-weight:500;margin-bottom:12px}
+.q-actions{display:flex;gap:6px}
+.q-btn{flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:var(--t1);font-weight:700;border-radius:var(--r8);padding:8px 4px;font-size:12px;cursor:pointer;font-family:inherit;transition:background .12s}
+.q-btn:active{background:var(--accent)}
+.q-answered{font-size:12px;font-weight:700;color:var(--accent2);margin-top:8px}
 .rg-thumb{width:210px;height:130px;border-radius:12px;overflow:hidden;cursor:pointer;position:relative;background:var(--s3)}
 .rg-thumb-vid{width:100%;height:100%;object-fit:cover}
 .rg-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.2)}
@@ -289,6 +296,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       <div class="input-bar">
         <button class="ibar-btn" onclick="document.getElementById('file-input').click()">🖼</button>
         <button class="ibar-btn" onclick="openCaptureMode()">📷</button>
+        <button class="ibar-btn" onclick="askBot()" title="Spicy question">🎲</button>
         <textarea id="msg-input" placeholder="Message…" rows="1" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
         <button class="send-btn" onclick="sendText()">➤</button>
       </div>
@@ -746,7 +754,19 @@ function appendMsg(msg,scroll=true){
   div.dataset.msgId=msg.id; div.dataset.mine=isMine?"1":"";
   const time=new Date(msg.created_at*1000).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
   let inner="";
-  if(msg.type==="text") inner=`<div class="bubble">${esc(msg.content)}</div>`;
+  if(msg.type==="question"){
+    const q=esc(msg.content);
+    inner=`<div class="q-bubble">
+      <div class="q-bot-tag">🎲 Spicy Bot</div>
+      <div class="q-text">${q}</div>
+      <div class="q-actions">
+        <button class="q-btn" onclick="answerQuestion(this,'${q.replace(/'/g,"\\'")}','Yes 🔥')">Yes 🔥</button>
+        <button class="q-btn" onclick="answerQuestion(this,'${q.replace(/'/g,"\\'")}','No')">No</button>
+        <button class="q-btn" onclick="answerQuestion(this,'${q.replace(/'/g,"\\'")}','Maybe 😏')">Maybe 😏</button>
+      </div>
+    </div>`;
+  }
+  else if(msg.type==="text") inner=`<div class="bubble">${esc(msg.content)}</div>`;
   else if(msg.type==="redgif"){
     const thumb=`/rg/proxy?url=${encodeURIComponent("https://thumbs2.redgifs.com/"+msg.content+"-mobile.jpg")}`;
     inner=`<div class="bubble"><div class="rg-thumb" onclick="openRgViewer('${msg.content}')" style="background-image:url('${thumb}');background-size:cover;background-position:center"><div class="rg-play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div></div>`;
@@ -787,6 +807,17 @@ function sendText(){
   socket.emit("message",{receiver_id:currentUser.id,type:"text",content:t});
   inp.value=""; inp.style.height="auto";
 }
+async function askBot(){
+  if(!currentUser){ toast("Open a chat first"); return; }
+  const {question}=await fetch("/api/bot/question",{headers:{Authorization:"Bearer "+token}}).then(r=>r.json());
+  socket.emit("message",{receiver_id:currentUser.id,type:"question",content:question});
+}
+function answerQuestion(el,question,answer){
+  const wrap=el.closest(".q-bubble");
+  if(wrap){ wrap.querySelector(".q-actions")?.remove(); }
+  socket.emit("message",{receiver_id:currentUser.id,type:"text",content:"🎲 "+question+"\n👉 "+answer});
+}
+
 async function sendMedia(input){
   const file=input.files[0]; if(!file||!currentUser)return;
   const fd=new FormData(); fd.append("file",file); fd.append("receiver_id",currentUser.id);

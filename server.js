@@ -94,6 +94,35 @@ app.get("/api/users", auth, (req, res) => {
   res.json(db.prepare("SELECT id, username FROM users WHERE id != ?").all(req.user.id));
 });
 
+// ── Spicy questions bot ───────────────────────────────────
+const BOT_QUESTIONS = [
+  "Would you let your partner fuck someone else if you got to watch?",
+  "Have you ever fantasized about sharing your partner with someone?",
+  "Would you rather watch your partner with someone else, or join in?",
+  "If your partner wanted to bring a third person into bed, would you say yes?",
+  "Would you let a stranger have your partner for one night?",
+  "Have you ever wanted to watch your partner get railed by someone bigger?",
+  "Would you pick who your partner sleeps with, or let them choose?",
+  "Would you let your partner send nudes to someone else if you approved them first?",
+  "Whats the hottest thing youd let your partner do with someone else?",
+  "Would you rather your partner be dominated or do the dominating?",
+  "Have you ever imagined your partner being 'shared' at a party?",
+  "Would you watch through a camera while your partner is with someone else?",
+  "Would you let your partner have a 'hall pass' for one night?",
+  "Whos allowed to touch your partner — nobody, one person, or anyone you approve?",
+  "Would you get turned on hearing about what your partner did with someone else?",
+  "Would you let your partner tease someone else in front of you?",
+  "If you could pick anyone for your partner to hook up with, whod it be?",
+  "Would you rather be told every detail, or just watch it happen?",
+  "Would you let your partner keep a 'friend' just for fun on the side?",
+  "Whats a fantasy youve never admitted to your partner until now?"
+];
+
+app.get("/api/bot/question", auth, (req, res) => {
+  const q = BOT_QUESTIONS[Math.floor(Math.random() * BOT_QUESTIONS.length)];
+  res.json({ question: q });
+});
+
 app.get("/api/messages/:userId", auth, (req, res) => {
   const msgs = db.prepare(`
     SELECT m.*, u.username as sender_name FROM messages m
