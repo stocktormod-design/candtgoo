@@ -538,8 +538,7 @@ function goTrending(){
 
 async function loadFeed(mode){
   feedMode=mode; page=1; nicheIndex=0; slideCount=0;
-  // Only reset page progress when explicitly switching to filter mode; preserve on Home reload
-  if(mode!=="trending"){ homeTagPages={}; homeQueue=[]; savePages(); }
+  if(mode==="filter"||mode==="popular"){ homeTagPages={}; homeQueue=[]; savePages(); }
   Object.keys(nichePages).forEach(k=>nichePages[k]=1);
   document.getElementById("feed").innerHTML=`<div class="slide"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:14px">Loading…</div></div>`;
   const gifs=await fetchNextBatch();
@@ -552,17 +551,27 @@ async function loadFeed(mode){
   initObserver();
 }
 
+async function rgFetch(url, retries=2){
+  for(let i=0;i<=retries;i++){
+    const d=await fetch(url).then(r=>r.json()).catch(()=>({}));
+    if(d.error?.code==="RateLimited"){
+      if(i<retries) await new Promise(r=>setTimeout(r,(d.error.delay||3000)+500));
+      else return {};
+    } else return d;
+  }
+  return {};
+}
+
 async function fetchNextBatch(){
   if(feedMode==="trending"){
-    // Fetch 2 tags in parallel, each with count=20, max 2 rounds to avoid rate limits
     const results=[];
     for(let round=0; round<2 && results.length<6; round++){
       const tag1=nextHomeTag(), tag2=nextHomeTag();
       if(!homeTagPages[tag1]) homeTagPages[tag1]=1;
       if(!homeTagPages[tag2]) homeTagPages[tag2]=1;
       const [d1,d2]=await Promise.all([
-        fetch(`/rg/search?q=${encodeURIComponent(tag1)}&page=${homeTagPages[tag1]}&count=20`).then(r=>r.json()).catch(()=>({})),
-        fetch(`/rg/search?q=${encodeURIComponent(tag2)}&page=${homeTagPages[tag2]}&count=20`).then(r=>r.json()).catch(()=>({})),
+        rgFetch(`/rg/search?q=${encodeURIComponent(tag1)}&page=${homeTagPages[tag1]}&count=20`),
+        rgFetch(`/rg/search?q=${encodeURIComponent(tag2)}&page=${homeTagPages[tag2]}&count=20`),
       ]);
       homeTagPages[tag1]++; homeTagPages[tag2]++;
       savePages();
@@ -572,11 +581,15 @@ async function fetchNextBatch(){
     }
     return results;
   }
+  if(feedMode==="popular"){
+    const d=await rgFetch(`/rg/trending?page=${page}`);
+    return (d.gifs||[]).filter(g=>!isBlacklisted(g));
+  }
   if(!selectedNiches.length) return [];
   const niche=selectedNiches[nicheIndex%selectedNiches.length]; nicheIndex++;
   if(!nichePages[niche]) nichePages[niche]=1;
   const order=filterSort==="latest"?"new":"trending";
-  const d=await fetch(`/rg/niche/${encodeURIComponent(niche)}?page=${nichePages[niche]}&order=${order}`).then(r=>r.json());
+  const d=await rgFetch(`/rg/niche/${encodeURIComponent(niche)}?page=${nichePages[niche]}&order=${order}`);
   nichePages[niche]++;
   return d.gifs||[];
 }
@@ -669,7 +682,11 @@ function toggleNiche(id,el){
 }
 function applyFilter(){
   document.getElementById("filter-overlay").style.display="none";
-  if(!selectedNiches.length){ goTrending(); return; }
+  if(!selectedNiches.length){
+    // Popular with no specific niche = use the real trending endpoint
+    if(filterSort==="popular"){ loadFeed("popular"); return; }
+    goTrending(); return;
+  }
   Object.keys(nichePages).forEach(k=>delete nichePages[k]);
   nicheIndex=0;
   loadFeed("filter");

@@ -200,16 +200,40 @@ app.get("/rg/trending", async (req, res) => {
   } catch { res.status(500).json({ error: "fetch failed" }); }
 });
 
-// Search result cache — 15 min TTL, avoids hammering Redgifs
+// Search result cache — 6 hour TTL, persisted to disk across restarts
 const searchCache = new Map();
-const CACHE_TTL = 15 * 60 * 1000;
+const CACHE_TTL = 6 * 60 * 60 * 1000;
+const CACHE_FILE = path.join(__dirname, 'search_cache.json');
+
 function cacheGet(key) {
   const entry = searchCache.get(key);
   if (!entry) return null;
   if (Date.now() - entry.ts > CACHE_TTL) { searchCache.delete(key); return null; }
   return entry.data;
 }
-function cacheSet(key, data) { searchCache.set(key, { data, ts: Date.now() }); }
+function cacheSet(key, data) { searchCache.set(key, { data, ts: Date.now() }); saveCacheToDisk(); }
+
+function saveCacheToDisk() {
+  try {
+    const obj = {};
+    for (const [k, v] of searchCache) obj[k] = v;
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(obj));
+  } catch(e) {}
+}
+
+// Load persisted cache on startup
+try {
+  const saved = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+  const now = Date.now();
+  let loaded = 0;
+  for (const [k, v] of Object.entries(saved)) {
+    if (now - v.ts < CACHE_TTL) { searchCache.set(k, v); loaded++; }
+  }
+  console.log(`Loaded ${loaded} cached items from disk`);
+} catch(e) {}
+
+process.on('SIGTERM', saveCacheToDisk);
+process.on('SIGINT', saveCacheToDisk);
 
 app.get("/rg/search", async (req, res) => {
   try {
