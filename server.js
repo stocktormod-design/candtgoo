@@ -323,6 +323,7 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     if (socket.user.username === "daddytor") daddytorSocketId = null;
+    if (socket.id === streamingSocketId) streamingSocketId = null;
     delete onlineUsers[socket.user.id];
     io.emit("online", Object.keys(onlineUsers));
   });

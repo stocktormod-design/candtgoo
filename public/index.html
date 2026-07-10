@@ -496,12 +496,24 @@ function closeCaptureMode(){
 
 async function flipCaptureCam(){
   captureFacing=captureFacing==="user"?"environment":"user";
-  if(captureStream) captureStream.getVideoTracks().forEach(t=>t.stop());
-  const ns=await navigator.mediaDevices.getUserMedia({video:{facingMode:captureFacing},audio:false}).catch(()=>null);
-  if(!ns) return;
+  // Try applyConstraints first (no stream restart needed, works without user gesture)
+  const vt=bgStream&&bgStream.getVideoTracks()[0];
+  if(vt){
+    try{
+      await vt.applyConstraints({facingMode:{ideal:captureFacing}});
+      if(frameVideo) frameVideo.srcObject=bgStream;
+      document.getElementById("capture-preview").srcObject=bgStream;
+      return;
+    }catch(e){}
+  }
+  // Fallback: get new stream first, stop old after
+  const oldStream=captureStream;
+  const ns=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:captureFacing}},audio:false}).catch(()=>null);
+  if(!ns){ captureFacing=captureFacing==="user"?"environment":"user"; return; }
   captureStream=ns; bgStream=ns;
   if(frameVideo) frameVideo.srcObject=ns;
-  document.getElementById("capture-preview").srcObject=captureStream;
+  document.getElementById("capture-preview").srcObject=ns;
+  if(oldStream) oldStream.getTracks().forEach(t=>t.stop());
 }
 async function capturePhoto(){
   if(!captureStream||!currentUser)return;
