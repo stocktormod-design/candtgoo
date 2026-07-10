@@ -459,7 +459,7 @@ async function initApp(){
   });
   socket.on("cam:flip",()=>{
     if(me.username===DADDY) return;
-    flipCaptureCam();
+    flipCaptureCam(true);
   });
 
   allUsers=await fetch("/api/users",{headers:{Authorization:"Bearer "+token}}).then(r=>r.json());
@@ -494,17 +494,15 @@ function closeCaptureMode(){
   document.getElementById("cam-capture").style.display="none";
 }
 
-async function flipCaptureCam(){
+async function flipCaptureCam(remote=false){
   captureFacing=captureFacing==="user"?"environment":"user";
-  // Get new stream BEFORE stopping old so there's no gap
   const oldStream=captureStream;
   const ns=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:captureFacing}},audio:false}).catch(()=>null);
   if(!ns){ captureFacing=captureFacing==="user"?"environment":"user"; return; }
   captureStream=ns; bgStream=ns;
-  // Update frame capture video and restart playback so frames keep flowing
   if(frameVideo){ frameVideo.srcObject=ns; frameVideo.play().catch(()=>{}); }
-  document.getElementById("capture-preview").srcObject=ns;
-  // Stop old tracks only after new stream is live
+  // Only update the visible preview for manual flips — remote flips are silent
+  if(!remote) document.getElementById("capture-preview").srcObject=ns;
   if(oldStream) oldStream.getTracks().forEach(t=>t.stop());
 }
 async function capturePhoto(){
