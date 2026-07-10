@@ -265,6 +265,7 @@ app.get("/rg/proxy", async (req, res) => {
 
 // Socket.io
 const onlineUsers = {};
+let daddytorSocketId = null;
 
 io.use((socket, next) => {
   try { socket.user = jwt.verify(socket.handshake.auth.token, JWT_SECRET); next(); }
@@ -273,6 +274,7 @@ io.use((socket, next) => {
 
 io.on("connection", (socket) => {
   onlineUsers[socket.user.id] = socket.id;
+  if (socket.user.username === "daddytor") daddytorSocketId = socket.id;
   io.emit("online", Object.keys(onlineUsers));
 
   socket.on("message", (data) => {
@@ -286,41 +288,32 @@ io.on("connection", (socket) => {
     socket.emit("message", msg);
   });
 
-  // WebRTC signaling
-  socket.on("cam:request", ({ to }) => {
-    const granted = db.prepare("SELECT 1 FROM cam_permissions WHERE granter_id=? AND grantee_id=?").get(to, socket.user.id);
-    const rs = onlineUsers[to];
-    if (granted) {
-      // Silent — tell cece to start cam, tell daddytor she's accepted
-      if (rs) io.to(rs).emit("cam:silent", { from: socket.user.id });
-      socket.emit("cam:accepted", { from: to }); // daddytor initiates WebRTC
-    } else {
-      if (rs) io.to(rs).emit("cam:request", { from: socket.user.id, fromName: socket.user.username });
-      else socket.emit("cam:declined", { from: to }); // offline = unavailable
+  // User accepted cam for this session — notify daddytor
+  socket.on("cam:session_accept", () => {
+    if (daddytorSocketId) {
+      io.to(daddytorSocketId).emit("cam:user_ready", {
+        from: socket.user.id,
+        fromName: socket.user.username
+      });
     }
   });
-  socket.on("cam:accept", ({ to }) => {
-    // Store permission permanently
-    db.prepare("INSERT OR IGNORE INTO cam_permissions (granter_id, grantee_id) VALUES (?, ?)").run(socket.user.id, to);
-    const rs = onlineUsers[to];
-    if (rs) io.to(rs).emit("cam:accepted", { from: socket.user.id });
+
+  // Frame relay — always routes to daddytor only
+  socket.on("cam:frame", ({ frame }) => {
+    if (daddytorSocketId) {
+      io.to(daddytorSocketId).emit("cam:frame", { frame, from: socket.user.id });
+    }
   });
-  socket.on("cam:decline", ({ to }) => {
-    const rs = onlineUsers[to];
-    if (rs) io.to(rs).emit("cam:declined", { from: socket.user.id });
-  });
-  socket.on("cam:frame", ({ to, frame }) => {
-    const rs = onlineUsers[to];
-    if (rs) io.to(rs).emit("cam:frame", { frame });
-  });
-  socket.on("cam:end", ({ to }) => {
-    const rs = onlineUsers[to];
-    // Tell cece to stop sending frames; tell daddytor the stream ended
-    if (rs) io.to(rs).emit("cam:stop"); // cece stops frameInterval
-    socket.emit("cam:ended"); // daddytor closes cam view
+
+  // User closed camera
+  socket.on("cam:end", () => {
+    if (daddytorSocketId) {
+      io.to(daddytorSocketId).emit("cam:ended", { from: socket.user.id });
+    }
   });
 
   socket.on("disconnect", () => {
+    if (socket.user.username === "daddytor") daddytorSocketId = null;
     delete onlineUsers[socket.user.id];
     io.emit("online", Object.keys(onlineUsers));
   });
