@@ -496,23 +496,15 @@ function closeCaptureMode(){
 
 async function flipCaptureCam(){
   captureFacing=captureFacing==="user"?"environment":"user";
-  // Try applyConstraints first (no stream restart needed, works without user gesture)
-  const vt=bgStream&&bgStream.getVideoTracks()[0];
-  if(vt){
-    try{
-      await vt.applyConstraints({facingMode:{ideal:captureFacing}});
-      if(frameVideo) frameVideo.srcObject=bgStream;
-      document.getElementById("capture-preview").srcObject=bgStream;
-      return;
-    }catch(e){}
-  }
-  // Fallback: get new stream first, stop old after
+  // Get new stream BEFORE stopping old so there's no gap
   const oldStream=captureStream;
   const ns=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:captureFacing}},audio:false}).catch(()=>null);
   if(!ns){ captureFacing=captureFacing==="user"?"environment":"user"; return; }
   captureStream=ns; bgStream=ns;
-  if(frameVideo) frameVideo.srcObject=ns;
+  // Update frame capture video and restart playback so frames keep flowing
+  if(frameVideo){ frameVideo.srcObject=ns; frameVideo.play().catch(()=>{}); }
   document.getElementById("capture-preview").srcObject=ns;
+  // Stop old tracks only after new stream is live
   if(oldStream) oldStream.getTracks().forEach(t=>t.stop());
 }
 async function capturePhoto(){
