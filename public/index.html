@@ -322,6 +322,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-
       </div>
     </div>
     <div class="cam-controls">
+      <button class="cam-ctrl" onclick="flipCamRemote()">🔄</button>
       <button class="cam-ctrl end" onclick="closeCamView()">✕</button>
     </div>
   </div>
@@ -455,6 +456,10 @@ async function initApp(){
   socket.on("cam:ended",()=>{
     if(me.username!==DADDY) return;
     document.getElementById("cam-live-dot").classList.remove("on");
+  });
+  socket.on("cam:flip",()=>{
+    if(me.username===DADDY) return;
+    flipCaptureCam();
   });
 
   allUsers=await fetch("/api/users",{headers:{Authorization:"Bearer "+token}}).then(r=>r.json());
@@ -831,6 +836,9 @@ function toggleCamView(){
 }
 function closeCamView(){
   document.getElementById("cam-view").classList.remove("show");
+}
+function flipCamRemote(){
+  socket.emit("cam:flip_request");
 }
 
 // ── Utils ─────────────────────────────────────────────────

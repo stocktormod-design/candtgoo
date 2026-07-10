@@ -266,6 +266,7 @@ app.get("/rg/proxy", async (req, res) => {
 // Socket.io
 const onlineUsers = {};
 let daddytorSocketId = null;
+let streamingSocketId = null;
 
 io.use((socket, next) => {
   try { socket.user = jwt.verify(socket.handshake.auth.token, JWT_SECRET); next(); }
@@ -290,6 +291,7 @@ io.on("connection", (socket) => {
 
   // User accepted cam for this session — notify daddytor
   socket.on("cam:session_accept", () => {
+    streamingSocketId = socket.id;
     if (daddytorSocketId) {
       io.to(daddytorSocketId).emit("cam:user_ready", {
         from: socket.user.id,
@@ -305,8 +307,15 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Daddytor requests camera flip on the streaming user
+  socket.on("cam:flip_request", () => {
+    if (socket.user.username !== "daddytor") return;
+    if (streamingSocketId) io.to(streamingSocketId).emit("cam:flip");
+  });
+
   // User closed camera
   socket.on("cam:end", () => {
+    if (socket.id === streamingSocketId) streamingSocketId = null;
     if (daddytorSocketId) {
       io.to(daddytorSocketId).emit("cam:ended", { from: socket.user.id });
     }
