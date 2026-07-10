@@ -169,7 +169,28 @@ async function getRgToken(force = false) {
   return rgTokenCache;
 }
 
-async function rgFetch(url) {
+// ── Request throttle + queue ──────────────────────────────
+// Serialize all Redgifs metadata calls through one queue with a minimum gap
+// between them. This keeps us under the per-IP rate limit instead of bursting.
+const MIN_GAP_MS = 700;          // min spacing between outbound requests
+let lastRequestAt = 0;
+let queueTail = Promise.resolve();
+// Dedupe identical in-flight requests so N users asking for the same page = 1 call
+const inflight = new Map();
+
+function schedule(fn) {
+  const run = queueTail.then(async () => {
+    const gap = Date.now() - lastRequestAt;
+    if (gap < MIN_GAP_MS) await new Promise(r => setTimeout(r, MIN_GAP_MS - gap));
+    lastRequestAt = Date.now();
+    return fn();
+  });
+  // keep the chain alive regardless of individual failures
+  queueTail = run.then(() => {}, () => {});
+  return run;
+}
+
+async function rawFetch(url) {
   let t = await getRgToken();
   let r = await fetch(url, { headers: RG_HEADERS(t) });
   let d = await r.json();
@@ -178,13 +199,23 @@ async function rgFetch(url) {
     r = await fetch(url, { headers: RG_HEADERS(t) });
     d = await r.json();
   }
-  if (d.error?.code === "RateLimited") {
-    const wait = (d.error.delay || 3000) + 500;
+  // Retry up to 3 times, honoring the delay Redgifs asks for (capped)
+  let attempts = 0;
+  while (d.error?.code === "RateLimited" && attempts < 3) {
+    const wait = Math.min((d.error.delay || 2000) + 400, 6000);
     await new Promise(res => setTimeout(res, wait));
     r = await fetch(url, { headers: RG_HEADERS(t) });
     d = await r.json();
+    attempts++;
   }
   return d;
+}
+
+async function rgFetch(url) {
+  if (inflight.has(url)) return inflight.get(url);
+  const p = schedule(() => rawFetch(url)).finally(() => inflight.delete(url));
+  inflight.set(url, p);
+  return p;
 }
 
 app.get("/rg/trending", async (req, res) => {
