@@ -592,8 +592,12 @@ async function fetchNextBatch(){
     return results;
   }
   if(feedMode==="popular"){
-    const d=await rgFetch(`/rg/trending?page=${page}`);
-    return (d.gifs||[]).filter(g=>!isBlacklisted(g));
+    // Real global feed like Redgifs: Popular = top of last 28 days, Latest = newest
+    const order=filterSort==="latest"?"latest":"top28";
+    const d=await rgFetch(`/rg/trending?order=${order}&page=${page}&count=20`);
+    const fresh=(d.gifs||[]).filter(g=>!isBlacklisted(g)&&!seenGifIds.has(g.id));
+    markSeen(fresh.map(g=>g.id));
+    return fresh;
   }
   if(!selectedNiches.length) return [];
   const niche=selectedNiches[nicheIndex%selectedNiches.length]; nicheIndex++;
@@ -692,11 +696,8 @@ function toggleNiche(id,el){
 }
 function applyFilter(){
   document.getElementById("filter-overlay").style.display="none";
-  if(!selectedNiches.length){
-    // Popular with no specific niche = use the real trending endpoint
-    if(filterSort==="popular"){ loadFeed("popular"); return; }
-    goTrending(); return;
-  }
+  // No specific niche selected = global feed (Popular=top28, Latest=newest), like Redgifs
+  if(!selectedNiches.length){ loadFeed("popular"); return; }
   Object.keys(nichePages).forEach(k=>delete nichePages[k]);
   nicheIndex=0;
   loadFeed("filter");

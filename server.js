@@ -252,16 +252,19 @@ async function rgFetch(url) {
   return p;
 }
 
+// Popular / global feed — mirrors how Redgifs powers its homepage discovery.
+// Valid orders: top, top7, top28, latest, score, trending. "Popular" = top28.
+const VALID_ORDERS = ["top", "top7", "top28", "latest", "score", "trending"];
 app.get("/rg/trending", async (req, res) => {
   try {
-    const { page = 1 } = req.query;
-    const key = `trending|${page}`;
+    const { page = 1, count = 20 } = req.query;
+    const order = VALID_ORDERS.includes(req.query.order) ? req.query.order : "top28";
+    const key = `popular|${order}|${page}|${count}`;
     const cached = cacheGet(key);
     if (cached) return res.json(cached);
-    const d = await rgFetch(`https://api.redgifs.com/v2/gifs/trending?page=${page}&count=20`);
-    const result = d.gifs?.length ? d : await rgFetch(`https://api.redgifs.com/v2/gifs/search?search_text=&order=trending&page=${page}&count=20`);
-    if (result.gifs?.length) cacheSet(key, result);
-    res.json(result);
+    const d = await rgFetch(`https://api.redgifs.com/v2/gifs/search?search_text=&order=${order}&page=${page}&count=${count}`);
+    if (d.gifs?.length) cacheSet(key, d);
+    res.json(d);
   } catch { res.status(500).json({ error: "fetch failed" }); }
 });
 
